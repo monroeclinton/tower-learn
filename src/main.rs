@@ -192,7 +192,7 @@ async fn main() -> anyhow::Result<()> {
         // Create a Logger<Logger<Responder>> service
         let mut svc = factory_svc.call(()).await?;
 
-        // The ConcurrencyLimit service blocks until there is available capacity, so call
+        // The ConcurrencyLimit service waits until there is available capacity, so call
         // ServiceExt::<Request>::ready to block until ready.
         // https://docs.rs/tower/0.4.13/tower/trait.ServiceExt.html#method.ready
         tokio::spawn(ServiceExt::<TcpStream>::ready(&mut svc).await?.call(stream));
