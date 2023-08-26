@@ -20,6 +20,7 @@ use std::{
 // Logger is a service that wrappers another service
 #[derive(Clone)]
 pub struct Logger<S> {
+    // The service must be Clone + Send so use Arc (Clone + Send) and  AtomicU64 (Send)
     request_total: Arc<AtomicU64>,
     source: String,
     inner: S,
