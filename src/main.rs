@@ -1,9 +1,11 @@
 use tokio::{
     io::{AsyncWrite, AsyncWriteExt},
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
     time::Duration,
 };
-use tower::{make::Shared, Layer, Service, ServiceBuilder};
+use tower::{
+    limit::ConcurrencyLimitLayer, make::Shared, Layer, Service, ServiceBuilder, ServiceExt,
+};
 
 use std::{
     future::Future,
@@ -173,9 +175,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Create a service from a series of layers/service
     let svc = ServiceBuilder::new()
+        .layer(ConcurrencyLimitLayer::new(2))
         .layer_fn(|service| Logger::new(service, "layer_fn".to_string()))
         .layer(LoggerLayer)
-        .layer_fn(|service| Waiter::new(service, Duration::from_secs(2)))
+        .layer_fn(|service| Waiter::new(service, Duration::from_secs(10)))
         .service(Responder::new());
 
     // A factory for creating services from the ServiceBuilder service
@@ -187,6 +190,6 @@ async fn main() -> anyhow::Result<()> {
         // Create a Logger<Logger<Responder>> service
         let mut svc = factory_svc.call(()).await?;
 
-        tokio::spawn(svc.call(stream));
+        tokio::spawn(ServiceExt::<TcpStream>::ready(&mut svc).await?.call(stream));
     }
 }
