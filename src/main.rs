@@ -180,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(ConcurrencyLimitLayer::new(2))
         .layer_fn(|service| Logger::new(service, "layer_fn".to_string()))
         .layer(LoggerLayer)
-        .layer_fn(|service| Waiter::new(service, Duration::from_secs(10)))
+        .layer_fn(|service| Waiter::new(service, Duration::from_secs(3)))
         .service(Responder::new());
 
     // A factory for creating services from the ServiceBuilder service
