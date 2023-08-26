@@ -1,6 +1,7 @@
 use tokio::{
     io::{AsyncWrite, AsyncWriteExt},
     net::TcpListener,
+    time::Duration,
 };
 use tower::{make::Shared, Layer, Service, ServiceBuilder};
 
@@ -81,6 +82,51 @@ impl<S> Layer<S> for LoggerLayer {
     }
 }
 
+// Waiter is a service that wrappers another service and waits a certain amount of time
+#[derive(Clone)]
+struct Waiter<S> {
+    duration: Duration,
+    inner: S,
+}
+
+impl<S> Waiter<S> {
+    fn new(inner: S, duration: Duration) -> Self {
+        Self { duration, inner }
+    }
+}
+
+impl<S, R> Service<R> for Waiter<S>
+where
+    S: Service<R> + Clone + Send + 'static,
+    S::Error: From<std::io::Error>,
+    S::Future: Send + 'static,
+    R: AsyncWrite + Unpin + Send + 'static,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future =
+        Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
+
+    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, mut req: R) -> Self::Future {
+        let duration = self.duration.clone();
+        let mut service = self.inner.clone();
+
+        let fut = async move {
+            req.write_all(format!("waiter waiting: {} seconds\n", duration.as_secs()).as_bytes())
+                .await?;
+
+            tokio::time::sleep(duration).await;
+            service.call(req).await
+        };
+
+        Box::pin(fut)
+    }
+}
+
 // Final service
 #[derive(Clone)]
 struct Responder {
@@ -129,6 +175,7 @@ async fn main() -> anyhow::Result<()> {
     let svc = ServiceBuilder::new()
         .layer_fn(|service| Logger::new(service, "layer_fn".to_string()))
         .layer(LoggerLayer)
+        .layer_fn(|service| Waiter::new(service, Duration::from_secs(2)))
         .service(Responder::new());
 
     // A factory for creating services from the ServiceBuilder service
