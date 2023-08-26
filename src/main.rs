@@ -61,7 +61,7 @@ where
         let source = self.source.clone();
 
         let fut = async move {
-            req.write_all(format!("logger called: {} from {}\n", inc, source).as_bytes())
+            req.write_all(format!("logger called: {} times from {}\n", inc, source).as_bytes())
                 .await?;
 
             service.call(req).await
@@ -157,7 +157,7 @@ where
     fn call(&mut self, mut req: R) -> Self::Future {
         let inc = self.request_total.fetch_add(1, Ordering::SeqCst);
         let fut = async move {
-            req.write_all(format!("responder called: {}\n", inc).as_bytes())
+            req.write_all(format!("responder called: {} times\n", inc).as_bytes())
                 .await?;
 
             Ok(())
